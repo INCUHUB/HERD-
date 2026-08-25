@@ -1,0 +1,57 @@
+# Render blueprint. New → Blueprint → pick this repo, and Render prompts
+# for the values marked sync:false rather than reading them from here.
+
+services:
+  - type: web
+    name: herd-store-app
+    runtime: node
+    plan: starter          # free tier sleeps; a sleeping app misses webhooks
+    region: frankfurt
+    buildCommand: "echo no build step"
+    startCommand: "node server.js"
+    healthCheckPath: /api/health
+    autoDeploy: true
+
+    # Lead times, purchase orders and the diary live on disk. Without this
+    # they reset on every deploy — the app warns on screen when that's the case.
+    disk:
+      name: herd-data
+      mountPath: /var/data
+      sizeGB: 1
+
+    envVars:
+      - key: SQUARE_ACCESS_TOKEN
+        sync: false
+      - key: DASHBOARD_PASS
+        generateValue: true
+      - key: DASHBOARD_USER
+        value: owner
+      - key: DATA_DIR
+        value: /var/data
+      - key: NODE_ENV
+        value: production
+      - key: OPENED_ON
+        value: "2026-08-07"
+
+      # Push. Set NTFY_TOPIC to something nobody would guess, subscribe to
+      # the same string in the ntfy app, and every sale lands on your phone.
+      - key: NTFY_TOPIC
+        sync: false
+
+      # Instant alerts. Fill these in after the first deploy, once you know
+      # the app's URL and have created the webhook in Square.
+      - key: SQUARE_WEBHOOK_SIGNATURE_KEY
+        sync: false
+      - key: SQUARE_WEBHOOK_URL
+        sync: false
+
+      - key: ALERT_SALES
+        value: "1"
+      - key: ALERT_REORDER
+        value: "1"
+      - key: ALERT_DAILY
+        value: "1"
+      - key: CLOSE_SUMMARY_HOUR
+        value: "18"
+      - key: DEFAULT_LEAD_TIME_DAYS
+        value: "21"
