@@ -26,7 +26,7 @@ const diary = require("./lib/diary");
 const notify = require("./lib/notify");
 const store = require("./lib/store");
 
-const BUILD = "2026-08-25-herd-1";
+const BUILD = "2026-08-25-herd-2";
 const PORT = process.env.PORT || 3000;
 const CACHE_MS = Number(process.env.CACHE_MS || 30000);
 const STOCK_CACHE_MS = Number(process.env.STOCK_CACHE_MS || 300000);
@@ -95,7 +95,30 @@ function safeEqual(a, b) {
   return x.length === y.length && crypto.timingSafeEqual(x, y);
 }
 
-const PUBLIC_PATHS = new Set(["/manifest.json", "/sw.js", "/apple-touch-icon.png", "/apple-touch-icon-precomposed.png"]);
+/* Paths served without a password.
+
+   The health check has to be here. Render polls it from outside with no
+   credentials, and a 401 reads as "unhealthy" — the deploy then times out
+   and the URL serves 502 while the app itself is running perfectly well.
+   It answers with nothing but liveness unless the caller is signed in. */
+const PUBLIC_PATHS = new Set([
+  "/manifest.json", "/sw.js",
+  "/apple-touch-icon.png", "/apple-touch-icon-precomposed.png",
+  "/api/health", "/healthz",
+]);
+
+/* Does this request carry valid credentials? Answers without writing to the
+   response, so it can also be used to decide how much detail to return. */
+function signedIn(req) {
+  if (ALLOW_OPEN) return true;
+  if (validSession(readCookie(req, COOKIE))) return true;
+
+  const header = req.headers.authorization || "";
+  if (!header.startsWith("Basic ")) return false;
+  const [user, pass] = Buffer.from(header.slice(6), "base64").toString().split(":");
+  const userOk = !AUTH_USER || safeEqual(user || "", AUTH_USER);
+  return Boolean(userOk && AUTH_PASS && safeEqual(pass || "", AUTH_PASS));
+}
 
 function authorised(req, res) {
   if (ALLOW_OPEN) return true;
@@ -106,18 +129,15 @@ function authorised(req, res) {
   // Square signs its own deliveries; Basic auth would only get in the way.
   if (p === "/webhooks/square") return true;
 
-  if (validSession(readCookie(req, COOKIE))) return true;
-
-  const header = req.headers.authorization || "";
-  if (header.startsWith("Basic ")) {
-    const [user, pass] = Buffer.from(header.slice(6), "base64").toString().split(":");
-    const userOk = !AUTH_USER || safeEqual(user || "", AUTH_USER);
-    if (userOk && AUTH_PASS && safeEqual(pass || "", AUTH_PASS)) {
+  if (signedIn(req)) {
+    // Issue a session on a fresh Basic sign-in. iOS home-screen apps don't
+    // reliably keep Basic credentials between launches.
+    if (!validSession(readCookie(req, COOKIE))) {
       res.setHeader("Set-Cookie",
         `${COOKIE}=${makeSession()}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${COOKIE_DAYS * 86400}` +
         (process.env.NODE_ENV === "production" ? "; Secure" : ""));
-      return true;
     }
+    return true;
   }
 
   res.writeHead(401, {
@@ -391,7 +411,13 @@ async function checkReorderAlerts(report, ctx) {
 /* Poller — the fallback when no Square webhook is configured. Also runs
    alongside one as a safety net for deliveries Square never retries. */
 
-let lastSeenAt = null;
+const WATERMARK = "sale-watermark";
+let lastSeenAt = store.read(WATERMARK, { at: null }).at;
+
+function setWatermark(at) {
+  lastSeenAt = at;
+  try { store.write(WATERMARK, { at }); } catch {}
+}
 
 async function pollSales() {
   try {
@@ -404,8 +430,14 @@ async function pollSales() {
     if (!day) return;
 
     const fresh = day.tape.filter(t => !lastSeenAt || new Date(t.at) > new Date(lastSeenAt));
-    if (fresh.length) lastSeenAt = fresh[0].at;
-    else if (!lastSeenAt && day.tape[0]) lastSeenAt = day.tape[0].at;
+
+    // First run of a fresh deployment: adopt the latest sale as the watermark
+    // rather than announcing everything that happened before boot.
+    if (!lastSeenAt) {
+      if (day.tape[0]) setWatermark(day.tape[0].at);
+      return;
+    }
+    if (fresh.length) setWatermark(fresh[0].at);
 
     for (const sale of fresh.slice(0, 5).reverse()) {
       await notify.announceSale({
@@ -559,15 +591,24 @@ const server = http.createServer(async (req, res) => {
 
     if (!authorised(req, res)) return;
 
-    if (p === "/api/health") {
-      const ctx = await context().catch(() => null);
+    if (p === "/api/health" || p === "/healthz") {
+      // Liveness only, and deliberately local: a health check that waits on
+      // Square would fail the deploy whenever Square is slow, which is
+      // exactly the moment you want the app to stay up and say so.
+      if (!signedIn(req)) {
+        return sendJSON(res, 200, { ok: true, build: BUILD, uptime: Math.round(process.uptime()) });
+      }
+
+      const ctx = ctxCache.value;   // whatever was last read; never a fresh call
       return sendJSON(res, 200, {
         ok: true, build: BUILD,
         business: ctx?.businessName || null,
         locations: ctx?.locations?.map(l => ({ id: l.id, name: l.name })) || [],
         timezone: ctx?.tz || null,
         catalogue: ctx ? ctx.index.products.size : 0,
+        variations: ctx ? ctx.index.variations.size : 0,
         brands: ctx?.brands?.length || 0,
+        squareError: ctxCache.error ? ctxCache.error.message : null,
         daysCached: sales.dayCount(),
         firstTradingDay: sales.firstTradingDay(),
         storage: { persistent: store.isPersistent(), path: store.location() },
@@ -681,7 +722,7 @@ const server = http.createServer(async (req, res) => {
 
 /* ── Boot ───────────────────────────────────────────────────── */
 
-server.listen(PORT, async () => {
+server.listen(PORT, "0.0.0.0", async () => {
   console.log(`[herd] ${BUILD} listening on :${PORT}`);
   console.log(`[herd] storage ${store.isPersistent() ? "persistent at " + store.location() : "IN MEMORY — attach a disk to keep lead times, purchase orders and the diary"}`);
 

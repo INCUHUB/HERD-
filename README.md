@@ -321,6 +321,38 @@ colour alone.
 | `BRAND_SOURCE` | `category` | `category`, or `prefix` to read the brand from the item name |
 | `SQUARE_VERSION` | unset | Pin a Square API version |
 
+## Troubleshooting
+
+**502 Bad Gateway, and the deploy log says `Timed Out`.** Render polls
+`/api/health` from outside with no credentials. That path is public and returns
+liveness only — `{"ok":true,"build":...,"uptime":...}` — with the full detail
+reserved for signed-in callers. If you change `healthCheckPath` in
+`render.yaml` to something behind the password, Render reads the `401` as
+unhealthy, the deploy never goes live, and the URL serves 502 even though the
+app is running fine and writing to the log.
+
+Quick check, no password needed:
+
+```bash
+curl -s https://your-app.onrender.com/api/health
+```
+
+A JSON body means the app is up and the problem is elsewhere. No response at
+all means it isn't listening.
+
+**The log says `notifications: none configured (in-app feed only)`.** No push
+channel is set. Add `NTFY_TOPIC` in Render → Environment and redeploy. Alerts
+still reach the Alerts tab in the meantime; they just aren't leaving the server.
+
+**The same sales alert arrives twice.** Render runs the old and new instances
+side by side for a few seconds during a deploy, and both poll. The sale
+watermark is written to disk so a restart doesn't re-announce history, but a
+brief overlap can still double up. It settles once the old instance retires.
+
+**Everything is `£0` on a tab that should have data.** Check the range — HERD
+has a short trading history, so "13 weeks" and "All" reach back before it
+opened. Set `OPENED_ON` so the "All" range starts on the right day.
+
 ## Notes and limits
 
 - Only `COMPLETED` orders count toward totals.
