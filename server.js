@@ -23,10 +23,11 @@ const sales = require("./lib/sales");
 const stock = require("./lib/stock");
 const team = require("./lib/team");
 const diary = require("./lib/diary");
+const marketing = require("./lib/marketing");
 const notify = require("./lib/notify");
 const store = require("./lib/store");
 
-const BUILD = "2026-08-25-herd-2";
+const BUILD = "2026-08-25-herd-4";
 const PORT = process.env.PORT || 3000;
 const CACHE_MS = Number(process.env.CACHE_MS || 30000);
 const STOCK_CACHE_MS = Number(process.env.STOCK_CACHE_MS || 300000);
@@ -36,8 +37,12 @@ const POLL_MS = Number(process.env.POLL_MS || 60000);
 /* ── Configuration ──────────────────────────────────────────── */
 
 const TOKEN = (process.env.SQUARE_ACCESS_TOKEN || process.env.SQUARE_TOKEN || "").trim();
-const AUTH_USER = process.env.DASHBOARD_USER || "";
-const AUTH_PASS = process.env.DASHBOARD_PASS || "";
+
+/* Trimmed deliberately. Pasting a value into Render's environment editor very
+   easily carries a trailing space or newline, and an untrimmed comparison then
+   rejects the correct password with no way to tell why. */
+const AUTH_USER = (process.env.DASHBOARD_USER || "").trim();
+const AUTH_PASS = (process.env.DASHBOARD_PASS || "").trim();
 const ALLOW_OPEN = process.env.ALLOW_OPEN === "1";
 const LOCATION_NAME = process.env.SQUARE_LOCATION_NAME || "";
 const OPENED_ON = process.env.OPENED_ON || "";      // YYYY-MM-DD, for "since opening"
@@ -115,9 +120,18 @@ function signedIn(req) {
 
   const header = req.headers.authorization || "";
   if (!header.startsWith("Basic ")) return false;
-  const [user, pass] = Buffer.from(header.slice(6), "base64").toString().split(":");
-  const userOk = !AUTH_USER || safeEqual(user || "", AUTH_USER);
-  return Boolean(userOk && AUTH_PASS && safeEqual(pass || "", AUTH_PASS));
+
+  // Basic auth separates on the FIRST colon; everything after it is the
+  // password. Splitting on every colon silently truncates any password that
+  // contains one, so it could never match however carefully it was typed.
+  const decoded = Buffer.from(header.slice(6), "base64").toString("utf8");
+  const split = decoded.indexOf(":");
+  if (split === -1) return false;
+  const user = decoded.slice(0, split);
+  const pass = decoded.slice(split + 1);
+
+  const userOk = !AUTH_USER || safeEqual(user, AUTH_USER);
+  return Boolean(userOk && AUTH_PASS && safeEqual(pass, AUTH_PASS));
 }
 
 function authorised(req, res) {
@@ -680,6 +694,25 @@ const server = http.createServer(async (req, res) => {
       return sendJSON(res, entry ? 200 : 404, entry ? { ok: true, entry } : { ok: false, message: "Not found" });
     }
 
+    if (p === "/api/marketing" && req.method === "GET") {
+      return sendJSON(res, 200, await marketing.build());
+    }
+
+    if (p === "/api/marketing/month" && req.method === "POST") {
+      const entry = marketing.addMonth(JSON.parse(await readBody(req) || "{}"));
+      return sendJSON(res, 200, { ok: true, entry });
+    }
+
+    if (p === "/api/marketing/campaign" && req.method === "POST") {
+      const entry = marketing.addCampaign(JSON.parse(await readBody(req) || "{}"));
+      return sendJSON(res, 200, { ok: true, entry });
+    }
+
+    if (p.startsWith("/api/marketing/campaign/") && req.method === "DELETE") {
+      const id = decodeURIComponent(p.split("/").pop());
+      return sendJSON(res, 200, { ok: marketing.removeCampaign(id) });
+    }
+
     if (p === "/api/alerts") {
       return sendJSON(res, 200, { ok: true, status: notify.status(), feed: notify.recent(40) });
     }
@@ -724,6 +757,13 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, "0.0.0.0", async () => {
   console.log(`[herd] ${BUILD} listening on :${PORT}`);
+
+  // Enough to diagnose a failed sign-in from the log without printing the
+  // password: if the length here doesn't match what you're typing, the
+  // environment variable is not what you think it is.
+  if (!ALLOW_OPEN) {
+    console.log(`[herd] sign in as "${AUTH_USER || "any username"}" — password is ${AUTH_PASS.length} characters`);
+  }
   console.log(`[herd] storage ${store.isPersistent() ? "persistent at " + store.location() : "IN MEMORY — attach a disk to keep lead times, purchase orders and the diary"}`);
 
   const on = notify.channels();

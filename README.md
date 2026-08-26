@@ -88,7 +88,37 @@ Velocity is measured over a line's own time on the floor, not a flat 28 days.
 Dividing four weeks of sales by 28 understates something that only landed last
 Tuesday — which is exactly the line most likely to need reordering.
 
-### The tab in six sections
+### Brands come first
+
+The tab opens on a brand table, because the buying decision is usually made
+at brand level before it is made at product level. Per brand, over 28 days:
+
+| | |
+|---|---|
+| **Revenue and share** | what it sold and what proportion of the shop that is |
+| **Units and share** | the same in volume |
+| **Rate of sale** | units per week |
+| **Sell-through** | sold ÷ (sold + on hand) — the number apparel buying runs on |
+| **Weeks of cover** | on hand ÷ rate of sale |
+| **Stock turn** | annualised, against the money tied up in that brand |
+| **ABC** | Pareto class: A is the brands making the first 80% of revenue, B the next 15%, C the tail |
+
+**Value and volume are ranked separately, and you can sort by either.** This
+matters more than it sounds. Ranking on revenue alone buries a cheap line
+selling in quantity — at a roughly common margin rate those units earn as much
+per pound as an expensive one, and they are usually what brings people through
+the door. Where a brand's two ranks pull apart by three places or more it gets
+labelled: **volume driver** (sells in units, not pounds) or **high ticket** (the
+reverse). Those are the two brands you would otherwise misjudge.
+
+A worked example from the demo data: SCRT is a C-class brand — 3.3% of revenue,
+sixth by value. By volume it is fifth with 11.8% of units, at 85% sell-through
+and 0.7 weeks of cover. On a revenue-sorted list it would look like a rounding
+error. It is actually the fastest-turning thing in the shop and about to run out.
+
+### The rest of the tab
+
+
 
 **Reorder list.** What to order now, with a suggested quantity, the size run
 laid out so you can see which sizes are gone, the trend arrow, and what the
@@ -139,6 +169,52 @@ Square only reports counts for variations with tracking switched on. Where
 nothing is tracked, the tab says so and tells you where to turn it on rather
 than showing an empty table. Turn it on under **Items → Inventory** in Square,
 or bulk-enable from the Items list.
+
+## Marketing
+
+Square knows what sold. It knows nothing about what put people in front of the
+window, so this tab is fed from elsewhere and kept deliberately separate from
+the trading figures.
+
+**Organic** — monthly Instagram figures: views, share from non-followers,
+followers gained, what was posted, the best post of the month and when
+followers are actually active. Ships seeded with July and August 2026 as
+reported.
+
+**Paid** — campaign reports. Spend, follower growth, cost per follow against
+target, reach, impressions, frequency, and a per-ad-set table with link clicks,
+cost per click, CTR and CPM. Findings and recommended actions are carried
+verbatim from the agency report rather than paraphrased, and every record names
+its source so any figure can be traced back to the document it came from.
+
+Paid and organic are reported side by side rather than added together — they
+answer different questions. The one honest combined figure is what a follower
+cost when you paid for one.
+
+### Adding a month
+
+```bash
+curl -u owner:PASS -X POST https://your-app.onrender.com/api/marketing/month \
+  -H 'Content-Type: application/json' \
+  -d '{"month":"2026-09","channel":"organic","views":52000,
+       "followersGained":410,"followersEnd":2175,"reels":2,"posts":4,"stories":14,
+       "source":"Instagram monthly recap, September 2026"}'
+```
+
+`POST /api/marketing/campaign` takes the same shape for a paid report; amounts
+are in minor units (pence). Anything posted replaces the seeded figure for that
+month or campaign.
+
+### Live follower count
+
+Set `META_ACCESS_TOKEN` and `IG_USER_ID` and the follower number comes from the
+Meta Graph API instead of the last figure entered; the tile then says *live*
+rather than *as entered*. Any failure falls back to stored figures and shows
+why — a marketing tab is not worth breaking the app over.
+
+**This path is written but unverified.** It could not be exercised from the
+build environment, which has no route to Meta and no token. Treat the first run
+as a test.
 
 ## Trading
 
@@ -319,6 +395,9 @@ colour alone.
 | `SQUARE_CONCURRENCY` | `6` | Simultaneous calls to Square |
 | `SESSION_DAYS` | `30` | How long a sign-in lasts |
 | `BRAND_SOURCE` | `category` | `category`, or `prefix` to read the brand from the item name |
+| `META_ACCESS_TOKEN` | — | Optional. Live Instagram follower count |
+| `IG_USER_ID` | — | Optional. The Instagram business account id |
+| `IG_CACHE_MS` | `900000` | How long a live follower count is cached |
 | `SQUARE_VERSION` | unset | Pin a Square API version |
 
 ## Troubleshooting
@@ -339,6 +418,20 @@ curl -s https://your-app.onrender.com/api/health
 
 A JSON body means the app is up and the problem is elsewhere. No response at
 all means it isn't listening.
+
+**The username and password are rejected.** The start-up log prints what the
+app is actually expecting:
+
+```
+[herd] sign in as "owner" — password is 24 characters
+```
+
+If that length doesn't match what you're typing, `DASHBOARD_PASS` isn't what
+you think it is — re-copy it from Render → Environment. If it says `any
+username`, `DASHBOARD_USER` is unset and any username will do.
+
+Both values are trimmed, so a trailing space picked up while copying is
+harmless, and the password may contain colons.
 
 **The log says `notifications: none configured (in-app feed only)`.** No push
 channel is set. Add `NTFY_TOPIC` in Render → Environment and redeploy. Alerts

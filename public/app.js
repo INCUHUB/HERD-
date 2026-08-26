@@ -340,7 +340,9 @@ function sizeRun(product) {
 
 function reorderRow(p) {
   const cover = p.daysCover === null ? "—" : `${p.daysCover}d`;
-  const urgency = p.daysCover === null ? 0 : Math.max(0, Math.min(1, 1 - p.daysCover / (p.leadTime || 21)));
+  const urgency = p.daysCover === null ? 1 : Math.max(0, Math.min(1, 1 - p.daysCover / (p.leadTime || 21)));
+  const critical = p.status === "stockout" || p.brokenRun;
+
   return `
     <tr>
       <td>
@@ -353,15 +355,50 @@ function reorderRow(p) {
       <td class="r">${p.perWeek}<span style="color:var(--text-3)">/wk</span>
         ${p.rising ? `<div class="trend rising">↑ accelerating</div>` : p.fading ? `<div class="trend fading">↓ slowing</div>` : ""}</td>
       <td class="r bar-cell">
-        <div class="tab-num" style="font-size:12.5px;margin-bottom:3px">${cover}</div>
-        <div class="bar-track"><div class="bar-fill" style="width:${(urgency * 100).toFixed(0)}%;background:${p.status === "stockout" ? "var(--critical)" : "var(--serious)"}"></div></div>
+        <div class="tab-num" style="font-size:12.5px;margin-bottom:3px">${cover}<span class="sub-r" style="display:inline;margin-left:4px">of ${p.leadTime}d lead</span></div>
+        <div class="bar-track"><div class="bar-fill" style="width:${(urgency * 100).toFixed(0)}%;background:${critical ? "var(--critical)" : "var(--serious)"}"></div></div>
       </td>
-      <td class="r">${p.leadTime}d</td>
-      <td class="r"><b>${p.suggested || "—"}</b></td>
+      <td class="r"><b style="font-size:15px">${p.suggested || "—"}</b></td>
       <td class="r">${p.revenueAtRisk ? money(p.revenueAtRisk, { pence: false }) : "—"}</td>
-      <td class="r"><span class="pill ${STATUS_CLASS[p.status]}">${STATUS_LABEL[p.status]}</span></td>
       <td class="r"><button class="btn tiny" data-order="${esc(p.id)}">Ordered</button></td>
     </tr>`;
+}
+
+function brandRows(d, mode) {
+  const list = mode === "volume" ? d.brands.byVolume : d.brands.byValue;
+  const max = Math.max(...list.map(b => mode === "volume" ? b.units : b.revenue), 1);
+
+  return list.map(b => {
+    const lead = mode === "volume" ? b.units : b.revenue;
+    const flags = [
+      b.stockouts ? `<span class="pill critical">${b.stockouts} out</span>` : "",
+      b.reorder ? `<span class="pill serious">${b.reorder} reorder</span>` : "",
+      b.rising ? `<span class="trend rising">↑ ${b.rising}</span>` : "",
+    ].filter(Boolean).join(" ");
+
+    return `
+    <tr>
+      <td>
+        <div class="name-cell">
+          <span>${esc(b.brand)} <span class="abc abc-${b.abc}">${b.abc}</span></span>
+          <span class="sub">${b.products} product${b.products === 1 ? "" : "s"}${
+            b.character ? ` · <b>${esc(b.character)}</b>` : ""}</span>
+        </div>
+      </td>
+      <td class="bar-cell">
+        <div class="bar-track"><div class="bar-fill" style="width:${Math.max(2, (lead / max) * 100).toFixed(0)}%;background:${mode === "volume" ? "var(--c2)" : "var(--c1)"}"></div></div>
+      </td>
+      <td class="r"><b>${money(b.revenue, { pence: false })}</b><div class="sub-r">${b.revenueShare}%</div></td>
+      <td class="r"><b>${num(b.units)}</b><div class="sub-r">${b.unitShare}%</div></td>
+      <td class="r">${money(b.avgPrice, { pence: false })}</td>
+      <td class="r">${b.rateOfSale}</td>
+      <td class="r">${b.sellThrough}%</td>
+      <td class="r">${b.weeksCover === null ? "—" : b.weeksCover}</td>
+      <td class="r">${money(b.stockValue, { pence: false })}</td>
+      <td class="r">${b.stockTurn === null ? "—" : b.stockTurn + "×"}</td>
+      <td class="r">${flags || "<span style='color:var(--text-3)'>—</span>"}</td>
+    </tr>`;
+  }).join("");
 }
 
 function renderStock(d) {
@@ -378,41 +415,75 @@ function renderStock(d) {
   $("#stock-badge").hidden = !(s.reorder + s.stockouts);
   $("#stock-badge").textContent = s.reorder + s.stockouts;
 
+  const mode = localStorage.getItem("herd.brandMode") === "volume" ? "volume" : "value";
+
   const tiles = `
     <div class="grid k4" style="margin-bottom:14px">
       <div class="card tight"><div class="stat">
+        <span class="kicker">Sold · last 28 days</span>
+        <span class="value">${compact(s.revenue28)}</span>
+        <span class="meta">${num(s.units28)} units across ${s.brandCount} brands</span></div></div>
+      <div class="card tight"><div class="stat">
+        <span class="kicker">Sell-through</span>
+        <span class="value">${s.sellThrough}%</span>
+        <span class="meta">sold vs sold + still on the rail</span></div></div>
+      <div class="card tight"><div class="stat">
         <span class="kicker">Need reordering</span>
         <span class="value" style="color:${s.reorder ? "var(--serious)" : "inherit"}">${s.reorder}</span>
-        <span class="meta">${s.stockouts ? `${s.stockouts} wholly out · ` : ""}${s.sizesOut} empty size${s.sizesOut === 1 ? "" : "s"}</span></div></div>
-      <div class="card tight"><div class="stat">
-        <span class="kicker">Revenue at risk</span>
-        <span class="value">${compact(s.atRisk)}</span>
-        <span class="meta">while you wait for delivery</span></div></div>
-      <div class="card tight"><div class="stat">
-        <span class="kicker">Losing per day</span>
-        <span class="value" style="color:${s.lostPerDay ? "var(--critical)" : "inherit"}">${compact(s.lostPerDay)}</span>
-        <span class="meta">from sizes already sold out</span></div></div>
+        <span class="meta">${compact(s.atRisk)} at risk · ${s.sizesOut} empty sizes</span></div></div>
       <div class="card tight"><div class="stat">
         <span class="kicker">Stock on hand</span>
         <span class="value">${compact(s.stockValue)}</span>
-        <span class="meta">${num(s.unitsOnHand)} units · ${s.products} products</span></div></div>
+        <span class="meta">${num(s.unitsOnHand)} units · top 3 brands are ${s.top3Share}% of sales</span></div></div>
+    </div>`;
+
+  const brands = `
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-head">
+        <div><h3>Brands</h3>
+          <p class="note">Last 28 days. Value and volume are ranked separately on purpose — at a common margin rate a cheap line selling in quantity earns its place as much as an expensive one, and it is usually what brings people in. Where a brand's two ranks pull apart it is labelled.</p></div>
+        <div style="display:flex;gap:4px">
+          <button class="btn tiny${mode === "value" ? " primary" : ""}" data-brand-mode="value">By value</button>
+          <button class="btn tiny${mode === "volume" ? " primary" : ""}" data-brand-mode="volume">By volume</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Brand</th><th style="width:70px"></th>
+            <th class="r">Revenue</th><th class="r">Units</th><th class="r">Avg</th>
+            <th class="r" title="Units sold per week">/wk</th>
+            <th class="r" title="Sold ÷ (sold + on hand)">Sell-thr</th>
+            <th class="r" title="Weeks of stock left at the current rate">Cover</th>
+            <th class="r">Stock</th>
+            <th class="r" title="Annualised stock turn">Turn</th>
+            <th class="r"></th>
+          </tr></thead>
+          <tbody id="brand-rows">${brandRows(d, mode)}</tbody>
+        </table>
+      </div>
+      <div class="legend">
+        <span><span class="abc abc-A">A</span> first 80% of revenue</span>
+        <span><span class="abc abc-B">B</span> next 15%</span>
+        <span><span class="abc abc-C">C</span> the tail</span>
+      </div>
     </div>`;
 
   const reorderTable = `
     <div class="card" style="margin-bottom:14px">
       <div class="card-head">
-        <div><h3>Reorder list</h3>
-          <p class="note">Ranked by what the gap costs, not by how few are left. Cover is stock ÷ how fast it's actually selling; a line flags when cover falls inside the brand's lead time plus ${d.settings.safetyDays} days' safety.</p></div>
+        <div><h3>Reorder now</h3>
+          <p class="note">Ranked by what the gap costs. Cover is stock ÷ how fast it is actually selling; a line flags when cover falls inside its brand's lead time plus ${d.settings.safetyDays} days.</p></div>
         <button class="btn tiny" id="lead-times">Lead times</button>
       </div>
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th>Product</th><th>Size run</th><th class="r">Selling</th><th class="r">Cover</th>
-            <th class="r">Lead</th><th class="r">Order</th><th class="r">At risk</th><th class="r">Status</th><th></th>
+            <th>Product</th><th>Sizes</th><th class="r">Selling</th>
+            <th class="r">Cover</th><th class="r">Order</th><th class="r">At risk</th><th></th>
           </tr></thead>
           <tbody>${d.reorder.length ? d.reorder.map(reorderRow).join("")
-            : `<tr><td colspan="9" class="empty">Nothing needs reordering. Every line selling has cover beyond its lead time.</td></tr>`}</tbody>
+            : `<tr><td colspan="7" class="empty">Nothing needs reordering — every line selling has cover beyond its lead time.</td></tr>`}</tbody>
         </table>
       </div>
     </div>`;
@@ -420,18 +491,17 @@ function renderStock(d) {
   const rising = `
     <div class="card">
       <div class="card-head"><div><h3>Accelerating</h3>
-        <p class="note">Selling faster this week than the last four. Still covered — but these become the reorder list.</p></div></div>
+        <p class="note">Selling faster this week than the last four, and still covered. Catch these before they become the reorder list.</p></div></div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Product</th><th class="r">7d</th><th class="r">Trend</th><th class="r">Cover</th><th class="r">Order</th><th></th></tr></thead>
+        <thead><tr><th>Product</th><th class="r">7d</th><th class="r">Trend</th><th class="r">Cover</th><th></th></tr></thead>
         <tbody>${d.rising.length ? d.rising.slice(0, 10).map(p => `
           <tr>
             <td><div class="name-cell"><span>${esc(p.name)}</span><span class="sub">${esc(p.brand)}</span></div></td>
             <td class="r">${p.u7}</td>
             <td class="r"><span class="trend rising">↑ ${(p.trend || 1).toFixed(1)}×</span></td>
             <td class="r">${p.daysCover ?? "—"}d</td>
-            <td class="r">${p.suggested || "—"}</td>
             <td class="r"><button class="btn tiny" data-order="${esc(p.id)}">Ordered</button></td>
-          </tr>`).join("") : `<tr><td colspan="6" class="empty">Nothing is accelerating this week.</td></tr>`}
+          </tr>`).join("") : `<tr><td colspan="5" class="empty">Nothing is accelerating this week.</td></tr>`}
         </tbody></table></div>
     </div>`;
 
@@ -450,16 +520,10 @@ function renderStock(d) {
         : `<p class="empty">No broken runs — every product's best size is in stock.</p>`}
     </div>`;
 
-  const movers = `
-    <div class="card">
-      <div class="card-head"><div><h3>What's actually selling</h3><p class="note">Last 28 days by revenue — the input the reorder list is derived from</p></div></div>
-      ${rankedBars(d.movers, { value: r => r.r28, label: r => r.name, sub: r => `${r.u28}u`, colour: "var(--c1)", limit: 10 })}
-    </div>`;
-
   const markdown = `
     <div class="card">
       <div class="card-head"><div><h3>Consider marking down</h3>
-        <p class="note">Capital sitting still — over ${d.settings.overstockDays} days of cover, fading, or not selling at all</p></div></div>
+        <p class="note">Capital sitting still — over ${d.settings.overstockDays} days of cover, or not selling at all</p></div></div>
       ${d.markdown.length ? `<div class="table-wrap"><table>
         <thead><tr><th>Product</th><th class="r">On hand</th><th class="r">28d</th><th class="r">Tied up</th></tr></thead>
         <tbody>${d.markdown.slice(0, 12).map(p => `
@@ -474,7 +538,7 @@ function renderStock(d) {
   const onOrder = d.purchaseOrders.filter(po => po.status === "open");
   const orders = `
     <div class="card">
-      <div class="card-head"><div><h3>On order</h3><p class="note">Marked as ordered here — each one lands in the diary on its expected date</p></div></div>
+      <div class="card-head"><div><h3>On order</h3><p class="note">Each one lands in the diary on its expected date</p></div></div>
       ${onOrder.length ? `<div class="table-wrap"><table>
         <thead><tr><th>Product</th><th class="r">Qty</th><th class="r">Raised</th><th class="r">Expected</th><th></th></tr></thead>
         <tbody>${onOrder.map(po => `
@@ -492,11 +556,15 @@ function renderStock(d) {
     </div>`;
 
   host.innerHTML =
-    (!d.persistent ? `<div class="banner warn"><span>⚠</span><span><b>Lead times and orders won't survive a restart</b>No writable disk is attached, so anything you set here is lost on the next deploy. Attach a Render disk at /var/data to fix it.</span></div>` : "")
-    + tiles + reorderTable
-    + `<div class="grid split" style="margin-bottom:14px">${rising}${movers}</div>`
-    + `<div class="grid split" style="margin-bottom:14px">${broken}${markdown}</div>`
-    + orders;
+    (!d.persistent ? `<div class="banner warn"><span>⚠</span><span><b>Lead times and orders won't survive a restart</b>No writable disk is attached. Attach a Render disk at /var/data to fix it.</span></div>` : "")
+    + tiles + brands + reorderTable
+    + `<div class="grid split" style="margin-bottom:14px">${rising}${broken}</div>`
+    + `<div class="grid split" style="margin-bottom:14px">${markdown}${orders}</div>`;
+
+  $$("[data-brand-mode]").forEach(b => b.onclick = () => {
+    try { localStorage.setItem("herd.brandMode", b.dataset.brandMode); } catch {}
+    renderStock(d);
+  });
 
   wireStock(d);
 }
@@ -843,6 +911,148 @@ const feedItem = a => `
     <span><b>${esc(a.title)}</b><br><span style="color:var(--text-3)">${esc(a.body).replace(/\n/g, "<br>")}</span></span>
   </div>`;
 
+
+/* ── Marketing ─────────────────────────────────────────────── */
+
+function renderMarketing(d) {
+  const ig = d.instagram;
+  const m = d.latest;
+  const paid = d.paid;
+
+  const source = ig.source === "live"
+    ? `<span class="pill good">live</span>`
+    : `<span class="pill" title="${ig.liveConfigured ? esc(ig.liveError || "") : "Set META_ACCESS_TOKEN and IG_USER_ID for a live figure"}">as entered${ig.asOf ? ` · ${shortDay(ig.asOf)}` : ""}</span>`;
+
+  const tiles = `
+    <div class="grid k4" style="margin-bottom:14px">
+      <div class="card tight"><div class="stat">
+        <span class="kicker">Followers</span>
+        <span class="value">${num(ig.followers)}</span>
+        <span class="meta">${ig.handle ? "@" + esc(ig.handle) + " · " : ""}${source}</span></div></div>
+      <div class="card tight"><div class="stat">
+        <span class="kicker">Views · ${esc(m?.window || m?.label || "latest")}</span>
+        <span class="value">${m ? num(m.views) : "—"}</span>
+        <span class="meta">${m?.viewsFromNonFollowers ? `${m.viewsFromNonFollowers}% from non-followers` : m?.interactions ? `${num(m.interactions)} interactions` : "&nbsp;"}</span></div></div>
+      <div class="card tight"><div class="stat">
+        <span class="kicker">Paid spend</span>
+        <span class="value">${compact(paid.spend)}</span>
+        <span class="meta">${plural(paid.campaigns, "campaign")} recorded</span></div></div>
+      <div class="card tight"><div class="stat">
+        <span class="kicker">Cost per follow</span>
+        <span class="value" style="color:var(--good)">${paid.costPerFollow !== null ? money(paid.costPerFollow, { pence: true }) : "—"}</span>
+        <span class="meta">${num(paid.followers)} follows bought${d.combined.paidShare !== null ? ` · ${d.combined.paidShare}% of the base` : ""}</span></div></div>
+    </div>`;
+
+  const growth = `
+    <div class="card">
+      <div class="card-head"><div><h3>Reach by month</h3>
+        <p class="note">Views on Instagram. August is a rolling 26 Jul–24 Aug window as the dashboard reports it, not a calendar month.</p></div></div>
+      <div class="chart" id="chart-views" data-title="Instagram views by month"></div>
+      <div class="legend"><span><span class="swatch" style="background:var(--c5)"></span>Views</span></div>
+      <div class="chart" id="chart-follows" style="margin-top:14px" data-title="Followers gained by month"></div>
+      <div class="legend"><span><span class="swatch" style="background:var(--c4)"></span>Followers gained</span></div>
+    </div>`;
+
+  const organic = `
+    <div class="card">
+      <div class="card-head"><div><h3>${esc(m?.label || "Latest month")}</h3>
+        <p class="note">${esc(m?.source || "")}</p></div></div>
+      ${m ? `<table><tbody>
+        <tr><td>Views</td><td class="r"><b>${num(m.views)}</b>${m.change?.views != null ? ` ${deltaHTML(m.change.views)}` : ""}</td></tr>
+        ${m.viewsFromNonFollowers ? `<tr><td>From non-followers</td><td class="r"><b>${m.viewsFromNonFollowers}%</b></td></tr>` : ""}
+        <tr><td>Followers gained</td><td class="r"><b>+${num(m.followersGained)}</b></td></tr>
+        ${m.followersEnd ? `<tr><td>Followers at month end</td><td class="r">${num(m.followersEnd)}</td></tr>` : ""}
+        ${m.interactions ? `<tr><td>Interactions</td><td class="r">${num(m.interactions)}</td></tr>` : ""}
+        <tr><td>Content shared</td><td class="r">${m.contentShared != null ? num(m.contentShared)
+          : `${m.reels || 0} reel${m.reels === 1 ? "" : "s"}, ${m.posts || 0} posts, ${m.stories || 0} stories`}</td></tr>
+      </tbody></table>` : `<p class="empty">No months recorded yet.</p>`}
+
+      ${m?.topPost ? `
+        <div class="card-head" style="margin-top:18px"><div><h3 style="font-size:13px">Best post</h3></div></div>
+        <div style="background:var(--surface-2);border-radius:12px;padding:12px 14px">
+          <b style="font-size:13.5px">${esc(m.topPost.title)}</b>
+          <p class="note" style="margin-top:4px">${
+            m.topPost.views ? `${num(m.topPost.views)}+ views · +${m.topPost.followersGained} followers. ` : ""}${
+            m.topPost.accountsEngaged ? `${num(m.topPost.accountsEngaged)} accounts engaged. ` : ""}${esc(m.topPost.note || "")}</p>
+        </div>` : ""}
+
+      ${m?.bestTimes?.length ? `
+        <div class="card-head" style="margin-top:18px"><div><h3 style="font-size:13px">When followers are active</h3></div></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${m.bestTimes.map(t => `<span class="pill">${esc(t)}</span>`).join("")}
+        </div>` : ""}
+    </div>`;
+
+  const campaigns = d.campaigns.map(c => {
+    const beat = c.targetCostPerFollow && c.costPerFollow
+      ? Math.round(c.targetCostPerFollow / c.costPerFollow) : null;
+    return `
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-head">
+        <div><h3>${esc(c.name)}</h3>
+          <p class="note">${esc(c.platform)}${c.agency ? ` · ${esc(c.agency)}` : ""} · ${shortDay(c.from)}–${shortDay(c.to)}${c.days ? ` · ${c.days} days` : ""}</p></div>
+        ${beat ? `<span class="pill good">${beat}× under target</span>` : ""}
+      </div>
+
+      <div class="grid k4" style="gap:10px;margin-bottom:16px">
+        <div class="stat"><span class="kicker">Spend</span><span class="value sm">${money(c.spend, { pence: false })}</span>
+          ${c.dailyBudget ? `<span class="meta">${money(c.dailyBudget, { pence: false })}/day</span>` : ""}</div>
+        <div class="stat"><span class="kicker">Followers</span><span class="value sm">+${num(c.followerGrowth)}</span>
+          ${c.followersBefore ? `<span class="meta">${num(c.followersBefore)} → ${num(c.followersAfter)}</span>` : ""}</div>
+        <div class="stat"><span class="kicker">Cost per follow</span><span class="value sm" style="color:var(--good)">${money(c.costPerFollow, { pence: true })}</span>
+          <span class="meta">target ${money(c.targetCostPerFollow, { pence: true })}</span></div>
+        <div class="stat"><span class="kicker">Reach</span><span class="value sm">${num(c.reach)}</span>
+          <span class="meta">${num(c.impressions)} impressions · ${c.frequency}× frequency</span></div>
+      </div>
+
+      <div class="table-wrap"><table>
+        <thead><tr><th>Ad set</th><th class="r">Link clicks</th><th class="r">Cost/click</th><th class="r">CTR</th><th class="r">CPM</th></tr></thead>
+        <tbody>${(c.adSets || []).map(a => `
+          <tr>
+            <td>${esc(a.name)} ${a.winner ? `<span class="pill good">leading</span>` : ""}</td>
+            <td class="r"><b>${num(a.linkClicks)}</b></td>
+            <td class="r">${a.costPerLinkClick}p</td>
+            <td class="r">${a.ctr}%</td>
+            <td class="r">${money(a.cpm, { pence: true })}</td>
+          </tr>`).join("")}</tbody></table></div>
+
+      ${c.findings?.length ? `
+        <div class="card-head" style="margin-top:18px"><div><h3 style="font-size:13px">What the numbers say</h3></div></div>
+        <ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.6;color:var(--text-2)">
+          ${c.findings.map(f => `<li>${esc(f)}</li>`).join("")}</ul>` : ""}
+
+      ${c.actions?.length ? `
+        <div style="background:var(--ink);color:var(--paper);border-radius:12px;padding:14px 16px;margin-top:16px">
+          <div class="kicker" style="color:rgba(244,240,230,.6);margin-bottom:8px">Recommended actions</div>
+          <ol style="margin:0;padding-left:18px;font-size:13px;line-height:1.7">
+            ${c.actions.map(a => `<li>${esc(a)}</li>`).join("")}</ol>
+        </div>` : ""}
+
+      ${c.caveat ? `<p class="note" style="margin-top:12px;line-height:1.6">${esc(c.caveat)}</p>` : ""}
+      <p class="note" style="margin-top:10px;color:var(--text-3)">Source: ${esc(c.source || "")}${c.account ? ` · ${esc(c.account)}` : ""}</p>
+    </div>`;
+  }).join("");
+
+  $("#view-marketing").innerHTML =
+    (!d.persistent ? `<div class="banner warn"><span>⚠</span><span><b>Entered figures won't survive a restart</b>The tab falls back to its built-in July and August numbers. Attach a Render disk to keep new ones.</span></div>` : "")
+    + tiles
+    + `<div class="grid split" style="margin-bottom:14px">${organic}${growth}</div>`
+    + campaigns;
+
+  if (d.series.length) {
+    barChart($("#chart-views"), {
+      points: d.series, value: p => p.views, height: 120, colour: "var(--c5)",
+      label: p => p.label.slice(0, 3),
+      tipHTML: p => `<b>${num(p.views)} views</b><div class="t-sub">${esc(p.label)}</div>`,
+    });
+    barChart($("#chart-follows"), {
+      points: d.series, value: p => p.followersGained, height: 120, colour: "var(--c4)",
+      label: p => p.label.slice(0, 3),
+      tipHTML: p => `<b>+${num(p.followersGained)} followers</b><div class="t-sub">${esc(p.label)}${p.followersEnd ? ` · ${num(p.followersEnd)} at month end` : ""}</div>`,
+    });
+  }
+}
+
 /* ── Dialog ────────────────────────────────────────────────── */
 
 function dialog({ title, body, confirm, onConfirm, destructive, onDestructive }) {
@@ -905,6 +1115,7 @@ async function load(force = false) {
     else if (view === "stock") d = await api(`/api/stock${force ? "?refresh=1" : ""}`);
     else if (view === "team") d = await api(`/api/team?range=${state.range}`);
     else if (view === "diary") d = await api(`/api/diary${state.diaryFrom ? `?from=${state.diaryFrom}&to=${shiftDays(state.diaryFrom, 27)}` : ""}`);
+    else if (view === "marketing") d = await api(`/api/marketing`);
     else if (view === "alerts") d = await api(`/api/alerts`);
 
     state.data[key] = d;
@@ -915,6 +1126,7 @@ async function load(force = false) {
     else if (view === "stock") renderStock(d);
     else if (view === "team") renderTeam(d);
     else if (view === "diary") renderDiary(d);
+    else if (view === "marketing") renderMarketing(d);
     else if (view === "alerts") renderAlerts(d);
   } catch (err) {
     setLive("down", "Offline");
