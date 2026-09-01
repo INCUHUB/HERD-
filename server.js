@@ -26,8 +26,9 @@ const diary = require("./lib/diary");
 const marketing = require("./lib/marketing");
 const notify = require("./lib/notify");
 const store = require("./lib/store");
+const press = require("./lib/press");
 
-const BUILD = "2026-08-25-herd-4";
+const BUILD = "2026-09-01-herd-5-press";
 const PORT = process.env.PORT || 3000;
 const CACHE_MS = Number(process.env.CACHE_MS || 30000);
 const STOCK_CACHE_MS = Number(process.env.STOCK_CACHE_MS || 300000);
@@ -742,8 +743,24 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    /* Press week — the call sheet, checklist and press pack, shared by
+       everyone signed in. One JSON document; writes carry the revision the
+       browser last saw so a simultaneous save is refused rather than
+       silently overwriting somebody. */
+    if (p === "/api/press" && req.method === "GET") {
+      return sendJSON(res, 200, press.read());
+    }
+
+    if (p === "/api/press" && req.method === "PUT") {
+      const body = JSON.parse(await readBody(req) || "{}");
+      const result = press.save(body.rev, body.state);
+      return sendJSON(res, result.ok ? 200 : 409,
+        result.ok ? { rev: result.rev, updatedAt: result.updatedAt } : result.current);
+    }
+
     if (p.startsWith("/api/")) return sendJSON(res, 404, { ok: false, message: "No such endpoint" });
 
+    if (p === "/press" || p === "/press/") return serveStatic(req, res, "/press.html");
     return serveStatic(req, res, p);
   } catch (err) {
     const { status, body } = describeError(err);

@@ -216,6 +216,19 @@ why — a marketing tab is not worth breaking the app over.
 build environment, which has no route to Meta and no token. Treat the first run
 as a test.
 
+Getting the two values is fiddlier than it should be, so there is a helper:
+
+```bash
+node tools/meta-token.js --app-id <id> --app-secret <secret> --token <short-lived token>
+```
+
+It exchanges the short-lived token from the Graph API Explorer for a **Page
+access token — which does not expire on a timer** — finds the Instagram account
+behind the Page, verifies it can read the follower count, and prints the two
+variables to paste into Render. The Instagram account has to be a Business or
+Creator account linked to a Facebook Page; the token needs `instagram_basic`,
+`pages_show_list` and `pages_read_engagement`.
+
 ## Trading
 
 Ranges: today, yesterday, 7 days, 28 days, 13 weeks, month to date, and
