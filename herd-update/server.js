@@ -28,7 +28,7 @@ const notify = require("./lib/notify");
 const store = require("./lib/store");
 const press = require("./lib/press");
 
-const BUILD = "2026-09-01-herd-7-marketing";
+const BUILD = "2026-09-01-herd-6-press-tab";
 const PORT = process.env.PORT || 3000;
 const CACHE_MS = Number(process.env.CACHE_MS || 30000);
 const STOCK_CACHE_MS = Number(process.env.STOCK_CACHE_MS || 300000);

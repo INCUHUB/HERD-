@@ -8,7 +8,7 @@
  *   Instagram monthly recap, @the.herdstore — June, July and August 2026
  *   Instagram professional dashboard, 2 – 31 Aug 2026
  *   Instagram profile, @the.herdstore, 1 Sep 2026
- *   Lunr Launch, "HERD Performance Report", all-time 14 Aug – 1 Sep 2026
+ *   Lunr, "Meta Advertising Report — HERD", campaign to date, 14–26 Aug 2026
  *
  * Once the app has a writable disk, anything added through the API replaces
  * the matching month or campaign and this seed stops being used for it.
@@ -93,92 +93,54 @@ module.exports = {
       agency: "Lunr Launch",
       account: "act_924359630710507",
       from: "2026-08-14",
-      to: "2026-09-01",
-      days: 19,
+      to: "2026-08-26",
+      days: 13,
       objective: "Brand awareness",
-      status: "Ahead of target",
-
-      spend: 31175,                // minor units — £311.75
-      followerGrowth: 961,
-      costPerFollow: 32,           // minor units — £0.32
-      targetCostPerFollow: 150,    // minor units — £1.50, the scale trigger
-      reach: 44775,
-      impressions: 69729,          // account total, deduped across ad sets
-      linkClicks: 7490,
-      ctr: 9.94,                   // per cent
-      cpc: 4.5,                    // pence
-
+      spend: 15835,                // minor units — £158.35
+      followerGrowth: 655,
+      costPerFollow: 24,           // minor units — £0.24
+      targetCostPerFollow: 150,    // minor units — £1.50
+      impressions: 35193,
+      reach: 24962,
+      linkClicks: 4053,
+      videoViews: 11878,
+      postReactions: 142,
+      saves: 13,
+      cpm: 450,                    // minor units — £4.50 blended
+      frequency: 1.41,
       followersBefore: 1110,
-      // +961 on 1,110 implies 2,071. The profile read 2,069 on 1 September,
-      // two apart — timing rather than a discrepancy worth chasing.
-      followersAfter: 2069,
-
+      followersAfter: 1765,
+      dailyBudget: 1300,           // minor units — £13/day
       adSets: [
         {
-          name: "AS1 · Advantage+",
-          spend: 16630,            // £166.30
-          reach: 27775,
-          linkClicks: 4352,
-          ctr: 10.58,
-          cpc: 4.1,                // pence
+          name: "AS1 · Local (Advantage+)",
+          linkClicks: 2335,
+          costPerLinkClick: 3.3,   // pence
+          ctr: 11.8,
+          cpm: 430,
           winner: true,
         },
         {
-          name: "AS2 · Shopping interests",
-          spend: 14543,            // £145.43
-          reach: 23298,
-          linkClicks: 3138,
-          ctr: 9.18,
-          cpc: 5.0,                // pence
+          name: "AS2 · Local (Shopping Interests)",
+          linkClicks: 1718,
+          costPerLinkClick: 4.7,
+          ctr: 9.3,
+          cpm: 471,
         },
       ],
-
-      // By ad, combined across both ad sets. Nothing here foots exactly to the
-      // account totals and it is not meant to: the per-ad spends sum to
-      // £311.84 against a stated £311.75, and the ad sets to £311.73, both
-      // rounding in the report itself. Impressions are further apart again
-      // (69,729 combined here against the account's deduped figure) because
-      // one person seeing both ad sets counts once at account level. The
-      // account row is the measured one; these are for comparing ads.
-      creatives: [
-        { name: "AD1 · Hero Video",       spend: 28924, impressions: 64708, linkClicks: 7240, ctr: 10.34, cpc: 4.3, winner: true },
-        { name: "AD2 · Images",           spend: 1933,  impressions: 4340,  linkClicks: 210,  ctr: 4.75,  cpc: 9.4 },
-        { name: "AD3 · Hero Video 2",     spend: 144,   impressions: 325,   linkClicks: 21,   ctr: 5.85,  cpc: 7.6, learning: true },
-        { name: "AD4 · Images 2 (Full)",  spend: 183,   impressions: 388,   linkClicks: 21,   ctr: 5.15,  cpc: 9.1, learning: true },
-      ],
-
       findings: [
-        "Cost per follow £0.32 against a £1.50 trigger — 79% below target, 4.7× headroom to scale.",
-        "AS1 (Advantage+) still leads: 10.58% CTR and £0.041 CPC against 9.18% and £0.050.",
-        "AD1 Hero Video carries 93% of spend at the best CTR and lowest CPC. Video is beating image by a distance.",
-        "AD3 and AD4 are newer and still gathering data for the next creative round.",
+        "Cost per follow £0.24 — around 6× better than the £1.50 target.",
+        "AS1 (Advantage+ broad) leads on every metric and has for two straight weeks: 11.8% CTR vs 9.3%, £4.30 CPM vs £4.71.",
+        "Frequency 1.41 at £4.50 blended CPM — the audience is not yet saturating.",
       ],
       actions: [
-        "Scale AS1 to £10/day — best CPC and CTR, well under the trigger.",
-        "Hold AS2 at £5/day and reassess at the four-week review.",
-        "Refresh creative before week 4 as frequency climbs.",
+        "Scale both ad sets from £13 to £15–20/day.",
+        "Weight the increase toward AS1 (Advantage+).",
+        "Monitor CPF and frequency after scaling; take results into the 4-week review.",
       ],
       caveat: "Follower growth blends paid and organic, so cost per follow is a "
             + "generous read. Even attributing every follow to paid it stays well under target.",
-
-      // The 14–26 Aug reading, kept so the trend is visible rather than
-      // overwritten. Cost per follow has risen as spend scaled, which is
-      // what scaling normally does, and is still far inside the trigger.
-      previously: {
-        to: "2026-08-26",
-        days: 13,
-        spend: 15835,              // £158.35
-        followerGrowth: 655,
-        costPerFollow: 24,         // £0.24
-        reach: 24962,
-        impressions: 35193,
-        linkClicks: 4053,
-        cpm: 450,                  // £4.50 blended
-        frequency: 1.41,
-        source: "Lunr, Meta Advertising Report — HERD, 14–26 Aug 2026",
-      },
-
-      source: "Lunr Launch, HERD Performance Report, all-time 14 Aug – 1 Sep 2026",
+      source: "Lunr, Meta Advertising Report — HERD, campaign to date",
     },
   ],
 };
