@@ -1,0 +1,12 @@
+{
+  "name": "herd-store-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Trading, stock, team and diary for The Herd Store, read live from Square.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "demo": "node tools/demo.js"
+  },
+  "engines": { "node": ">=20" }
+}

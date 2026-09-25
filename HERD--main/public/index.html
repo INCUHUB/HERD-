@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>HERD</title>
+<meta name="description" content="Trading, stock, team and diary for The Herd Store.">
+<meta name="theme-color" content="#E9E2D2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#14120E" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="HERD">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="icon" href="/icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,400;6..96,500&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="top-inner">
+    <div class="brandline">
+      <img class="wordmark wordmark--black" src="/assets/herd-wordmark-black.png" alt="HERD">
+      <img class="wordmark wordmark--bone" src="/assets/herd-wordmark-bone.png" alt="">
+      <span class="sitename" id="sitename">11 Lower Hillgate</span>
+    </div>
+
+    <span class="spacer"></span>
+
+    <div class="ranges" id="ranges" role="group" aria-label="Reporting period"></div>
+
+    <span class="live beat" id="live" title="Connection to Square">
+      <span class="dot" id="live-dot"></span>
+      <span id="live-text">Live</span>
+    </span>
+
+    <button class="btn tiny ghost" id="theme-toggle" title="Switch theme" aria-label="Switch theme">◐</button>
+  </div>
+
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button class="tab" role="tab" id="tab-trading" aria-selected="true" data-view="trading">Trading</button>
+    <button class="tab" role="tab" id="tab-stock"   aria-selected="false" data-view="stock">Stock <span class="pill count" id="stock-badge" hidden></span></button>
+    <button class="tab" role="tab" id="tab-team"    aria-selected="false" data-view="team">Team</button>
+    <button class="tab" role="tab" id="tab-diary"   aria-selected="false" data-view="diary">Diary <span class="pill count" id="diary-badge" hidden></span></button>
+    <button class="tab" role="tab" id="tab-marketing" aria-selected="false" data-view="marketing">Marketing</button>
+    <button class="tab" role="tab" id="tab-press"   aria-selected="false" data-view="press">Press</button>
+    <button class="tab" role="tab" id="tab-alerts"  aria-selected="false" data-view="alerts">Alerts</button>
+  </nav>
+</header>
+
+<main>
+  <div id="global-banner"></div>
+  <section id="view-trading" role="tabpanel" aria-labelledby="tab-trading"></section>
+  <section id="view-stock"   role="tabpanel" aria-labelledby="tab-stock"   hidden></section>
+  <section id="view-team"    role="tabpanel" aria-labelledby="tab-team"    hidden></section>
+  <section id="view-diary"   role="tabpanel" aria-labelledby="tab-diary"   hidden></section>
+  <section id="view-marketing" role="tabpanel" aria-labelledby="tab-marketing" hidden></section>
+  <section id="view-press"   role="tabpanel" aria-labelledby="tab-press"   hidden></section>
+  <section id="view-alerts"  role="tabpanel" aria-labelledby="tab-alerts"  hidden></section>
+</main>
+
+<dialog id="dlg">
+  <form method="dialog" id="dlg-form">
+    <div class="dlg-body" id="dlg-body"></div>
+    <div class="dlg-foot" id="dlg-foot"></div>
+  </form>
+</dialog>
+
+<div class="tip" id="tip" role="status" aria-live="polite"></div>
+
+<script src="/app.js" type="module"></script>
+</body>
+</html>
